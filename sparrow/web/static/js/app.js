@@ -1,3 +1,90 @@
+function _escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function _highlightText(text, searchTerm) {
+    if (!searchTerm) return text;
+    const escaped = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escaped})`, 'gi');
+    return text.replace(regex, '<mark class="json-search-highlight">$1</mark>');
+}
+
+function _highlightLeaf(text, cls, searchTerm) {
+    if (searchTerm) {
+        return `<span class="${cls}">${_highlightText(text, searchTerm)}</span>`;
+    }
+    return `<span class="${cls}">${text}</span>`;
+}
+
+function _searchJson(data, term, path) {
+    path = path || '';
+    const matches = new Set();
+    if (!term) return matches;
+    const lower = term.toLowerCase();
+
+    if (data !== null && typeof data === 'object') {
+        const entries = Array.isArray(data) ? data.map((v, i) => [i, v]) : Object.entries(data);
+        for (const [key, value] of entries) {
+            const childPath = path ? `${path}.${key}` : String(key);
+            if (String(key).toLowerCase().includes(lower)) {
+                matches.add(path || String(key));
+            }
+            if (typeof value === 'string' && value.toLowerCase().includes(lower)) {
+                matches.add(childPath);
+            } else if (typeof value === 'number' && String(value).toLowerCase().includes(lower)) {
+                matches.add(childPath);
+            } else if (typeof value === 'boolean' && String(value).toLowerCase().includes(lower)) {
+                matches.add(childPath);
+            } else if (value !== null && typeof value === 'object') {
+                for (const m of _searchJson(value, term, childPath)) {
+                    matches.add(m);
+                }
+            }
+        }
+    }
+
+    return matches;
+}
+
+function _pathHasMatch(path, searchPaths) {
+    if (!searchPaths) return false;
+    if (searchPaths.has(path)) return true;
+    for (const p of searchPaths) {
+        if (p.startsWith(path + '.') || path === '') return true;
+    }
+    return false;
+}
+
+function _renderJsonTree(data, searchTerm, path, searchPaths) {
+    path = path || '';
+    if (data === null) return _highlightLeaf('null', 'json-null', searchTerm);
+    if (typeof data === 'boolean') return _highlightLeaf(String(data), 'json-boolean', searchTerm);
+    if (typeof data === 'number') return _highlightLeaf(String(data), 'json-number', searchTerm);
+    if (typeof data === 'string') return _highlightLeaf('"' + _escapeHtml(data) + '"', 'json-string', searchTerm);
+
+    const isArray = Array.isArray(data);
+    const entries = isArray ? data.map((v, i) => [i, v]) : Object.entries(data);
+    const count = entries.length;
+    const summary = isArray ? `[${count} item${count !== 1 ? 's' : ''}]` : `{${count} key${count !== 1 ? 's' : ''}}`;
+    const open = !searchTerm || _pathHasMatch(path, searchPaths) ? ' open' : '';
+
+    let html = `<details class="json-tree-node"${open}><summary>`;
+    html += `<span class="json-tree-summary">${summary}</span>`;
+    html += `</summary>`;
+    html += `<div class="json-tree-children">`;
+
+    for (const [key, value] of entries) {
+        const childPath = path ? `${path}.${key}` : String(key);
+        const keyHtml = isArray
+            ? ''
+            : `<span class="json-key">${_highlightText(_escapeHtml(String(key)), searchTerm)}</span><span class="json-colon">: </span>`;
+        html += `<div class="json-tree-item">${keyHtml}${_renderJsonTree(value, searchTerm, childPath, searchPaths)}</div>`;
+    }
+
+    html += `</div></details>`;
+    return html;
+}
+
 function sparrowApp() {
     return {
         currentView: 'traces',
@@ -11,6 +98,15 @@ function sparrowApp() {
         filters: { model: '', status: '', dateFrom: '', dateTo: '', minDuration: '', path: '' },
         pagination: { page: 1, pageSize: 50, total: 0, totalPages: 1 },
         eventSource: null,
+
+        jsonViewerOpen: false,
+        jsonViewerTitle: '',
+        jsonViewerContent: '',
+        jsonViewerParsed: null,
+        jsonViewerSearch: '',
+        jsonViewerSearchPaths: null,
+        jsonViewerSearchCount: 0,
+        jsonViewerCopyFeedback: '',
 
         async init() {
             this.initTheme();
@@ -161,12 +257,12 @@ function sparrowApp() {
                 const obj = JSON.parse(str);
                 return this.syntaxHighlight(JSON.stringify(obj, null, 2));
             } catch {
-                return this.escapeHtml(str);
+                return _escapeHtml(str);
             }
         },
 
         syntaxHighlight(json) {
-            json = this.escapeHtml(json);
+            json = _escapeHtml(json);
             return json.replace(
                 /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
                 (match) => {
@@ -188,7 +284,68 @@ function sparrowApp() {
         },
 
         escapeHtml(str) {
-            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return _escapeHtml(str);
+        },
+
+        openJsonViewer(title, jsonString) {
+            this.jsonViewerTitle = title;
+            this.jsonViewerContent = jsonString || '';
+            this.jsonViewerSearch = '';
+            this.jsonViewerSearchPaths = null;
+            this.jsonViewerSearchCount = 0;
+            this.jsonViewerCopyFeedback = '';
+            try {
+                this.jsonViewerParsed = JSON.parse(this.jsonViewerContent);
+            } catch {
+                this.jsonViewerParsed = this.jsonViewerContent;
+            }
+            this.jsonViewerOpen = true;
+            this.$nextTick(() => {
+                const el = document.getElementById('json-viewer-dialog');
+                if (el) el.focus();
+            });
+        },
+
+        closeJsonViewer() {
+            this.jsonViewerOpen = false;
+            this.jsonViewerSearch = '';
+            this.jsonViewerSearchPaths = null;
+            this.jsonViewerSearchCount = 0;
+        },
+
+        getJsonViewerTree() {
+            const parsed = this.jsonViewerParsed;
+            if (parsed === null || parsed === undefined) return '<span class="json-null">null</span>';
+            if (typeof parsed === 'string') {
+                return '<pre class="whitespace-pre-wrap text-xs">' + _escapeHtml(parsed) + '</pre>';
+            }
+            this.jsonViewerSearchPaths = this.jsonViewerSearch ? _searchJson(parsed, this.jsonViewerSearch) : null;
+            this.jsonViewerSearchCount = this.jsonViewerSearchPaths ? this.jsonViewerSearchPaths.size : 0;
+            return _renderJsonTree(parsed, this.jsonViewerSearch, '', this.jsonViewerSearchPaths);
+        },
+
+        async copyJsonToClipboard() {
+            const parsed = this.jsonViewerParsed;
+            try {
+                const text = typeof parsed === 'object' && parsed !== null
+                    ? JSON.stringify(parsed, null, 2)
+                    : String(parsed);
+                await navigator.clipboard.writeText(text);
+                this.jsonViewerCopyFeedback = 'Copied!';
+                setTimeout(() => { this.jsonViewerCopyFeedback = ''; }, 2000);
+            } catch {
+                const textarea = document.createElement('textarea');
+                const text = typeof parsed === 'object' && parsed !== null
+                    ? JSON.stringify(parsed, null, 2)
+                    : String(parsed);
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                this.jsonViewerCopyFeedback = 'Copied!';
+                setTimeout(() => { this.jsonViewerCopyFeedback = ''; }, 2000);
+            }
         },
 
         formatBytes(bytes) {

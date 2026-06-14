@@ -13,3 +13,69 @@
   --color-primary-900: #1e3a8a;
   --color-primary-950: #172554;
 }
+
+.json-tree-node details {
+  margin-left: 1.25rem;
+}
+
+.json-tree-node > summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.json-tree-node > summary::before {
+  content: '▶';
+  font-size: 0.625rem;
+  display: inline-block;
+  transition: transform 0.15s ease;
+  color: #6b7280;
+}
+
+.json-tree-node > summary::-webkit-details-marker {
+  display: none;
+}
+
+.json-tree-node[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.json-tree-summary {
+  color: #9ca3af;
+  font-size: 0.75rem;
+  margin-left: 0.25rem;
+}
+
+:root:not(.dark) .json-tree-summary {
+  color: #6b7280;
+}
+
+.json-tree-item {
+  padding-left: 0.25rem;
+}
+
+.json-tree-children {
+  margin-left: 0.25rem;
+  border-left: 1px solid #374151;
+}
+
+:root:not(.dark) .json-tree-children {
+  border-left-color: #d1d5db;
+}
+
+.json-colon {
+  color: #9ca3af;
+}
+
+.json-search-highlight {
+  background-color: #f59e0b;
+  color: #000;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+:root:not(.dark) .json-search-highlight {
+  background-color: #fbbf24;
+}

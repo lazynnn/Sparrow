@@ -92,19 +92,39 @@
                     </div>
 
                     <div>
-                        <h3 class="text-sm font-semibold mb-2 text-gray-500 dark:text-gray-400 uppercase tracking-wider">Request Body</h3>
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Request Body</h3>
+                            <button @click="openJsonViewer('Request Body', selectedTrace.request_body)" class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Open in viewer">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+                            </button>
+                        </div>
                         <pre class="bg-gray-100 dark:bg-gray-900 rounded-lg p-4 text-xs overflow-x-auto max-h-80" x-html="formatJSON(selectedTrace.request_body)"></pre>
                     </div>
                     <div>
-                        <h3 class="text-sm font-semibold mb-2 text-gray-500 dark:text-gray-400 uppercase tracking-wider">Response Body</h3>
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Response Body</h3>
+                            <button @click="openJsonViewer('Response Body', selectedTrace.response_body)" class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Open in viewer">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+                            </button>
+                        </div>
                         <pre class="bg-gray-100 dark:bg-gray-900 rounded-lg p-4 text-xs overflow-x-auto max-h-80" x-html="formatJSON(selectedTrace.response_body)"></pre>
                     </div>
                     <div>
-                        <h3 class="text-sm font-semibold mb-2 text-gray-500 dark:text-gray-400 uppercase tracking-wider">Request Headers</h3>
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Request Headers</h3>
+                            <button @click="openJsonViewer('Request Headers', selectedTrace.request_headers)" class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Open in viewer">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+                            </button>
+                        </div>
                         <pre class="bg-gray-100 dark:bg-gray-900 rounded-lg p-4 text-xs overflow-x-auto max-h-40" x-html="formatJSON(selectedTrace.request_headers)"></pre>
                     </div>
                     <div>
-                        <h3 class="text-sm font-semibold mb-2 text-gray-500 dark:text-gray-400 uppercase tracking-wider">Response Headers</h3>
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Response Headers</h3>
+                            <button @click="openJsonViewer('Response Headers', selectedTrace.response_headers)" class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Open in viewer">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+                            </button>
+                        </div>
                         <pre class="bg-gray-100 dark:bg-gray-900 rounded-lg p-4 text-xs overflow-x-auto max-h-40" x-html="formatJSON(selectedTrace.response_headers)"></pre>
                     </div>
                 </div>
@@ -251,6 +271,31 @@
                 </template>
             </tbody>
         </table>
+    </div>
+</div>
+
+<!-- JSON Viewer Dialog -->
+<div x-show="jsonViewerOpen" x-cloak id="json-viewer-dialog" tabindex="-1" @keydown.escape="closeJsonViewer()" class="fixed inset-0 z-[60] flex">
+    <div class="fixed inset-0 bg-black/60" @click="closeJsonViewer()"></div>
+    <div class="relative w-full h-full bg-white dark:bg-gray-900 flex flex-col">
+        <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0">
+            <h2 class="text-lg font-semibold whitespace-nowrap" x-text="jsonViewerTitle"></h2>
+            <div class="flex-1"></div>
+            <div class="relative">
+                <svg class="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <input type="text" x-model="jsonViewerSearch" placeholder="Search..." class="pl-8 pr-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-gray-200 w-48 focus:outline-none focus:ring-2 focus:ring-primary-500">
+                <template x-if="jsonViewerSearch">
+                    <span class="ml-2 text-xs text-gray-400 whitespace-nowrap" x-text="jsonViewerSearchCount + ' match' + (jsonViewerSearchCount !== 1 ? 'es' : '')"></span>
+                </template>
+            </div>
+            <button @click="copyJsonToClipboard()" class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors whitespace-nowrap" :class="jsonViewerCopyFeedback ? 'text-green-500 border-green-500' : ''" x-text="jsonViewerCopyFeedback || 'Copy'"></button>
+            <button @click="closeJsonViewer()" class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="flex-1 overflow-auto p-6">
+            <div class="font-mono text-sm leading-relaxed" x-html="getJsonViewerTree()"></div>
+        </div>
     </div>
 </div>
 
