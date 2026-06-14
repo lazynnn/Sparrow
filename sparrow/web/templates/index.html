@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sparrow - LLM Gateway</title>
+    <link rel="stylesheet" href="/static/dist/output.css">
+    <script defer src="/static/js/alpine.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .json-key { color: #60a5fa; }
+        .json-string { color: #34d399; }
+        .json-number { color: #fbbf24; }
+        .json-boolean { color: #f87171; }
+        .json-null { color: #9ca3af; }
+        :root:not(.dark) .json-key { color: #2563eb; }
+        :root:not(.dark) .json-string { color: #059669; }
+        :root:not(.dark) .json-number { color: #d97706; }
+        :root:not(.dark) .json-boolean { color: #dc2626; }
+        :root:not(.dark) .json-null { color: #6b7280; }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen"
+      x-data="sparrowApp()" x-init="init()">
+
+<nav class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+        <h1 class="text-xl font-bold text-primary-600 dark:text-primary-400">Sparrow</h1>
+        <div class="flex gap-1">
+            <button @click="currentView='traces'"
+                    :class="currentView==='traces' ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                    class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors">Traces</button>
+            <button @click="currentView='dashboard'"
+                    :class="currentView==='dashboard' ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                    class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors">Dashboard</button>
+            <button @click="currentView='archives'"
+                    :class="currentView==='archives' ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                    class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors">Archives</button>
+        </div>
+    </div>
+    <button @click="toggleTheme()" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'">
+        <svg x-show="isDark" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        <svg x-show="!isDark" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+    </button>
+</nav>
+
+<!-- Traces View -->
+<div x-show="currentView==='traces'" x-cloak>
+    <div class="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-3">
+        <div class="flex flex-wrap gap-3 items-center">
+            <select x-model="filters.model" @change="loadTraces()" class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 dark:text-gray-200">
+                <option value="">All Models</option>
+                <template x-for="m in models" :key="m"><option :value="m" x-text="m"></option></template>
+            </select>
+            <select x-model="filters.status" @change="loadTraces()" class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 dark:text-gray-200">
+                <option value="">All Status</option>
+                <option value="success">Success</option>
+                <option value="error">Error</option>
+                <option value="timeout">Timeout</option>
+            </select>
+            <input type="date" x-model="filters.dateFrom" @change="loadTraces()" class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 dark:text-gray-200" placeholder="From date">
+            <input type="date" x-model="filters.dateTo" @change="loadTraces()" class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 dark:text-gray-200" placeholder="To date">
+            <input type="number" x-model="filters.minDuration" @change="loadTraces()" placeholder="Min duration (ms)" class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 w-40">
+            <input type="text" x-model="filters.path" @change="loadTraces()" placeholder="Path filter" class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 dark:text-gray-200 w-40">
+        </div>
+    </div>
+
+    <!-- Trace detail panel -->
+    <div x-show="selectedTrace" x-cloak class="fixed inset-0 z-50 flex">
+        <div class="fixed inset-0 bg-black/50" @click="selectedTrace=null"></div>
+        <div class="relative ml-auto w-full max-w-3xl bg-white dark:bg-gray-800 shadow-xl overflow-y-auto">
+            <div class="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold">Trace Detail</h2>
+                <button @click="selectedTrace=null" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <template x-if="selectedTrace">
+                <div class="p-6 space-y-6">
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div><span class="text-gray-500 dark:text-gray-400">Method:</span> <span class="font-mono font-semibold" x-text="selectedTrace.request_method"></span></div>
+                        <div><span class="text-gray-500 dark:text-gray-400">Path:</span> <span class="font-mono" x-text="selectedTrace.request_path"></span></div>
+                        <div><span class="text-gray-500 dark:text-gray-400">Status:</span> <span :class="selectedTrace.response_status >= 400 ? 'text-red-500' : 'text-green-500'" x-text="selectedTrace.response_status"></span></div>
+                        <div><span class="text-gray-500 dark:text-gray-400">Model:</span> <span x-text="selectedTrace.model_name || '-'"></span></div>
+                        <div><span class="text-gray-500 dark:text-gray-400">Duration:</span> <span x-text="selectedTrace.duration_ms ? selectedTrace.duration_ms.toFixed(1) + 'ms' : '-'"></span></div>
+                        <div><span class="text-gray-500 dark:text-gray-400">TTFB:</span> <span x-text="selectedTrace.ttfb_ms ? selectedTrace.ttfb_ms.toFixed(1) + 'ms' : '-'"></span></div>
+                        <div><span class="text-gray-500 dark:text-gray-400">Tokens:</span> <span x-text="selectedTrace.total_tokens || '-'"></span></div>
+                        <div><span class="text-gray-500 dark:text-gray-400">Cost:</span> <span x-text="selectedTrace.cost != null ? '$' + selectedTrace.cost.toFixed(6) : 'Unknown'"></span></div>
+                        <div><span class="text-gray-500 dark:text-gray-400">Streaming:</span> <span x-text="selectedTrace.is_streaming ? 'Yes' : 'No'"></span></div>
+                        <div><span class="text-gray-500 dark:text-gray-400">Timestamp:</span> <span x-text="formatTime(selectedTrace.timestamp)"></span></div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold mb-2 text-gray-500 dark:text-gray-400 uppercase tracking-wider">Request Body</h3>
+                        <pre class="bg-gray-100 dark:bg-gray-900 rounded-lg p-4 text-xs overflow-x-auto max-h-80" x-html="formatJSON(selectedTrace.request_body)"></pre>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold mb-2 text-gray-500 dark:text-gray-400 uppercase tracking-wider">Response Body</h3>
+                        <pre class="bg-gray-100 dark:bg-gray-900 rounded-lg p-4 text-xs overflow-x-auto max-h-80" x-html="formatJSON(selectedTrace.response_body)"></pre>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold mb-2 text-gray-500 dark:text-gray-400 uppercase tracking-wider">Request Headers</h3>
+                        <pre class="bg-gray-100 dark:bg-gray-900 rounded-lg p-4 text-xs overflow-x-auto max-h-40" x-html="formatJSON(selectedTrace.request_headers)"></pre>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold mb-2 text-gray-500 dark:text-gray-400 uppercase tracking-wider">Response Headers</h3>
+                        <pre class="bg-gray-100 dark:bg-gray-900 rounded-lg p-4 text-xs overflow-x-auto max-h-40" x-html="formatJSON(selectedTrace.response_headers)"></pre>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Trace list table -->
+    <div class="px-6 py-4">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-gray-200 dark:border-gray-700 text-left text-gray-500 dark:text-gray-400">
+                        <th class="pb-2 pr-4 font-medium">Time</th>
+                        <th class="pb-2 pr-4 font-medium">Method</th>
+                        <th class="pb-2 pr-4 font-medium">Path</th>
+                        <th class="pb-2 pr-4 font-medium">Model</th>
+                        <th class="pb-2 pr-4 font-medium">Status</th>
+                        <th class="pb-2 pr-4 font-medium">Duration</th>
+                        <th class="pb-2 pr-4 font-medium">Tokens</th>
+                        <th class="pb-2 font-medium">Cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="trace in traces" :key="trace.id">
+                        <tr @click="showTraceDetail(trace.id)"
+                            class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors">
+                            <td class="py-2.5 pr-4 font-mono text-xs" x-text="formatTime(trace.timestamp)"></td>
+                            <td class="py-2.5 pr-4"><span class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono" x-text="trace.request_method"></span></td>
+                            <td class="py-2.5 pr-4 font-mono text-xs max-w-xs truncate" x-text="trace.request_path"></td>
+                            <td class="py-2.5 pr-4 text-xs" x-text="trace.model_name || '-'"></td>
+                            <td class="py-2.5 pr-4">
+                                <span :class="trace.response_status >= 400 ? 'text-red-500' : trace.response_status >= 300 ? 'text-yellow-500' : 'text-green-500'"
+                                      class="font-mono" x-text="trace.response_status || '-'"></span>
+                            </td>
+                            <td class="py-2.5 pr-4 font-mono text-xs" x-text="trace.duration_ms ? trace.duration_ms.toFixed(0) + 'ms' : '-'"></td>
+                            <td class="py-2.5 pr-4 font-mono text-xs" x-text="trace.total_tokens || '-'"></td>
+                            <td class="py-2.5 font-mono text-xs" x-text="trace.cost != null ? '$' + trace.cost.toFixed(6) : '—'"></td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="flex items-center justify-between mt-4 text-sm text-gray-500 dark:text-gray-400">
+            <span x-text="`Page ${pagination.page} of ${pagination.totalPages} (${pagination.total} traces)`"></span>
+            <div class="flex gap-2">
+                <button @click="pagination.page > 1 && (pagination.page--, loadTraces())"
+                        :disabled="pagination.page <= 1"
+                        class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">Prev</button>
+                <button @click="pagination.page < pagination.totalPages && (pagination.page++, loadTraces())"
+                        :disabled="pagination.page >= pagination.totalPages"
+                        class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">Next</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dashboard View -->
+<div x-show="currentView==='dashboard'" x-cloak class="px-6 py-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+            <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Requests</div>
+            <div class="text-2xl font-bold" x-text="dashboard.total_requests"></div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+            <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Tokens</div>
+            <div class="text-2xl font-bold" x-text="dashboard.total_tokens?.toLocaleString() || '0'"></div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+            <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Cost</div>
+            <div class="text-2xl font-bold" x-text="dashboard.total_cost != null ? '$' + dashboard.total_cost.toFixed(4) : 'Unknown'"></div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+            <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Avg Duration</div>
+            <div class="text-2xl font-bold" x-text="dashboard.avg_duration_ms ? dashboard.avg_duration_ms.toFixed(0) + 'ms' : '-'"></div>
+        </div>
+    </div>
+
+    <h2 class="text-lg font-semibold mb-4">Usage by Model</h2>
+    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-gray-200 dark:border-gray-700 text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50">
+                    <th class="px-5 py-3 font-medium">Model</th>
+                    <th class="px-5 py-3 font-medium">Requests</th>
+                    <th class="px-5 py-3 font-medium">Prompt Tokens</th>
+                    <th class="px-5 py-3 font-medium">Completion Tokens</th>
+                    <th class="px-5 py-3 font-medium">Total Tokens</th>
+                    <th class="px-5 py-3 font-medium">Cost</th>
+                </tr>
+            </thead>
+            <tbody>
+                <template x-for="m in dashboard.models" :key="m.model_name">
+                    <tr class="border-b border-gray-100 dark:border-gray-800">
+                        <td class="px-5 py-3 font-mono" x-text="m.model_name"></td>
+                        <td class="px-5 py-3" x-text="m.request_count"></td>
+                        <td class="px-5 py-3" x-text="m.prompt_tokens?.toLocaleString() || '0'"></td>
+                        <td class="px-5 py-3" x-text="m.completion_tokens?.toLocaleString() || '0'"></td>
+                        <td class="px-5 py-3" x-text="m.total_tokens?.toLocaleString() || '0'"></td>
+                        <td class="px-5 py-3" x-text="m.cost != null ? '$' + m.cost.toFixed(4) : 'Unknown'"></td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Archives View -->
+<div x-show="currentView==='archives'" x-cloak class="px-6 py-6">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-lg font-semibold">Archives</h2>
+        <div class="flex gap-3">
+            <input type="date" x-model="archiveDate" class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 dark:text-gray-200" placeholder="Archive older than">
+            <button @click="createArchive()" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-1.5 rounded-md text-sm font-medium transition-colors">Create Archive</button>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-gray-200 dark:border-gray-700 text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50">
+                    <th class="px-5 py-3 font-medium">Filename</th>
+                    <th class="px-5 py-3 font-medium">Traces</th>
+                    <th class="px-5 py-3 font-medium">Size</th>
+                    <th class="px-5 py-3 font-medium">Created</th>
+                    <th class="px-5 py-3 font-medium">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <template x-for="a in archives" :key="a.filename">
+                    <tr class="border-b border-gray-100 dark:border-gray-800">
+                        <td class="px-5 py-3 font-mono text-xs" x-text="a.filename"></td>
+                        <td class="px-5 py-3" x-text="a.trace_count || '-'"></td>
+                        <td class="px-5 py-3" x-text="formatBytes(a.size)"></td>
+                        <td class="px-5 py-3 text-xs" x-text="a.archive_timestamp || '-'"></td>
+                        <td class="px-5 py-3">
+                            <button @click="importArchive(a.path)" class="text-primary-600 hover:text-primary-700 text-xs font-medium">Import</button>
+                        </td>
+                    </tr>
+                </template>
+                <template x-if="archives.length === 0">
+                    <tr><td colspan="5" class="px-5 py-8 text-center text-gray-400">No archives yet</td></tr>
+                </template>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>

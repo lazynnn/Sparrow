@@ -1,0 +1,53 @@
+# Sparrow LLM Gateway Configuration
+
+# Proxy server port (receives client requests and forwards to target APIs)
+proxy_port: 8080
+
+# Web UI port (serves the log viewer and REST API)
+ui_port: 8081
+
+# Logging level: DEBUG, INFO, WARNING, ERROR
+log_level: INFO
+
+# Route definitions: map URL prefixes to target API base URLs
+# Requests matching a prefix are proxied to the corresponding target.
+# The longest matching prefix wins.
+routes:
+  - prefix: "/v1"
+    target_url: "https://api.openai.com/v1"
+  # Add more targets as needed:
+  # - prefix: "/v1/azure"
+  #   target_url: "https://myresource.openai.azure.com/openai/deployments"
+
+# Storage settings
+storage:
+  # Path to SQLite database file
+  database: "./sparrow.db"
+  # Maximum size for request/response bodies stored in traces
+  # Bodies exceeding this are truncated with a [TRUNCATED] marker
+  max_body_size: "1MB"
+  # Directory for archive files
+  archive_dir: "./archives"
+
+# Model pricing table (per 1M tokens)
+# Cost = (input_tokens / 1M) * input_price + (output_tokens / 1M) * output_price
+# Models not listed here will show cost as "Unknown"
+pricing:
+  gpt-4o:
+    input: 2.50
+    output: 10.00
+  gpt-4o-mini:
+    input: 0.15
+    output: 0.60
+  gpt-3.5-turbo:
+    input: 0.50
+    output: 1.50
+  gpt-4-turbo:
+    input: 10.00
+    output: 30.00
+  gpt-4:
+    input: 30.00
+    output: 60.00
+
+# Streaming timeout in seconds (for SSE connections)
+stream_timeout: 300
