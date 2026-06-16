@@ -55,6 +55,49 @@ function _pathHasMatch(path, searchPaths) {
     return false;
 }
 
+function _isSSE(str) {
+    if (!str || typeof str !== 'string') return false;
+    return str.split('\n').some(line => line.startsWith('data: '));
+}
+
+function _parseSSEChunks(str) {
+    if (!str) return [];
+    const chunks = [];
+    const lines = str.split('\n');
+    let index = 0;
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data: ')) continue;
+        const data = trimmed.slice(6);
+        const parsed = data === '[DONE]' ? null : (() => { try { return JSON.parse(data); } catch { return null; } })();
+        chunks.push({ index: ++index, raw: trimmed, data, parsed, isDone: data === '[DONE]' });
+    }
+    return chunks;
+}
+
+function _mergeSSEContent(chunks) {
+    const reasoningParts = [];
+    const contentParts = [];
+    for (const chunk of chunks) {
+        if (!chunk.parsed || chunk.isDone) continue;
+        try {
+            const choices = chunk.parsed.choices;
+            if (!Array.isArray(choices)) continue;
+            for (const choice of choices) {
+                if (!choice.delta) continue;
+                const reasoning = choice.delta.reasoning_content ?? choice.delta.reasoning;
+                if (reasoning != null && reasoning !== '') {
+                    reasoningParts.push(reasoning);
+                }
+                if (choice.delta.content != null && choice.delta.content !== '') {
+                    contentParts.push(choice.delta.content);
+                }
+            }
+        } catch {}
+    }
+    return { reasoning: reasoningParts.join(''), content: contentParts.join('') };
+}
+
 function _renderJsonTree(data, searchTerm, path, searchPaths) {
     path = path || '';
     if (data === null) return _highlightLeaf('null', 'json-null', searchTerm);
@@ -107,6 +150,8 @@ function sparrowApp() {
         jsonViewerSearchPaths: null,
         jsonViewerSearchCount: 0,
         jsonViewerCopyFeedback: '',
+        jsonViewerIsSSE: false,
+        jsonViewerMode: 'chunks',
 
         async init() {
             this.initTheme();
@@ -294,6 +339,8 @@ function sparrowApp() {
             this.jsonViewerSearchPaths = null;
             this.jsonViewerSearchCount = 0;
             this.jsonViewerCopyFeedback = '';
+            this.jsonViewerIsSSE = _isSSE(this.jsonViewerContent);
+            this.jsonViewerMode = this.jsonViewerIsSSE ? 'chunks' : 'json';
             try {
                 this.jsonViewerParsed = JSON.parse(this.jsonViewerContent);
             } catch {
@@ -311,9 +358,16 @@ function sparrowApp() {
             this.jsonViewerSearch = '';
             this.jsonViewerSearchPaths = null;
             this.jsonViewerSearchCount = 0;
+            this.jsonViewerIsSSE = false;
+            this.jsonViewerMode = 'json';
         },
 
         getJsonViewerTree() {
+            if (this.jsonViewerIsSSE) {
+                if (this.jsonViewerMode === 'raw') return this.getRawSSEHtml();
+                if (this.jsonViewerMode === 'chunks') return this.getChunksViewHtml();
+                if (this.jsonViewerMode === 'merged') return this.getMergedViewHtml();
+            }
             const parsed = this.jsonViewerParsed;
             if (parsed === null || parsed === undefined) return '<span class="json-null">null</span>';
             if (typeof parsed === 'string') {
@@ -324,20 +378,88 @@ function sparrowApp() {
             return _renderJsonTree(parsed, this.jsonViewerSearch, '', this.jsonViewerSearchPaths);
         },
 
+        getRawSSEHtml() {
+            const lines = (this.jsonViewerContent || '').split('\n');
+            let html = '<pre class="whitespace-pre-wrap text-xs">';
+            for (let i = 0; i < lines.length; i++) {
+                const line = _escapeHtml(lines[i]);
+                if (lines[i].startsWith('data: ')) {
+                    html += '<span class="sse-data-prefix">data: </span>' + line.slice(6);
+                } else {
+                    html += line;
+                }
+                if (i < lines.length - 1) html += '\n';
+            }
+            html += '</pre>';
+            return html;
+        },
+
+        getChunksViewHtml() {
+            const chunks = _parseSSEChunks(this.jsonViewerContent);
+            if (chunks.length === 0) return '<pre class="text-xs text-gray-400">No SSE chunks found</pre>';
+            let html = '';
+            for (const chunk of chunks) {
+                html += `<div class="sse-chunk">`;
+                html += `<div class="sse-chunk-header">Chunk ${chunk.index}${chunk.isDone ? ' — [DONE]' : ''}</div>`;
+                if (chunk.isDone) {
+                    html += '<div class="sse-chunk-body text-xs text-gray-400 italic">Stream end marker</div>';
+                } else if (chunk.parsed) {
+                    html += '<div class="sse-chunk-body">' + _renderJsonTree(chunk.parsed, this.jsonViewerSearch) + '</div>';
+                } else {
+                    html += '<div class="sse-chunk-body text-xs">' + _escapeHtml(chunk.data) + '</div>';
+                }
+                html += '</div>';
+            }
+            return html;
+        },
+
+        getMergedViewHtml() {
+            const chunks = _parseSSEChunks(this.jsonViewerContent);
+            const merged = _mergeSSEContent(chunks);
+            if (!merged.reasoning && !merged.content) {
+                return '<div class="text-sm text-gray-400 italic p-4">No extractable text content found in SSE chunks (no <span class="font-mono">choices[].delta.content</span> fields detected).</div>';
+            }
+            let html = '';
+            if (merged.reasoning) {
+                html += '<div class="sse-merged-section">';
+                html += '<div class="sse-merged-label">Reasoning</div>';
+                html += '<pre class="whitespace-pre-wrap text-sm leading-relaxed">' + _escapeHtml(merged.reasoning) + '</pre>';
+                html += '</div>';
+            }
+            if (merged.reasoning && merged.content) {
+                html += '<hr class="sse-merged-divider">';
+            }
+            if (merged.content) {
+                html += '<div class="sse-merged-section">';
+                html += '<div class="sse-merged-label">Content</div>';
+                html += '<pre class="whitespace-pre-wrap text-sm leading-relaxed">' + _escapeHtml(merged.content) + '</pre>';
+                html += '</div>';
+            }
+            return html;
+        },
+
         async copyJsonToClipboard() {
-            const parsed = this.jsonViewerParsed;
-            try {
-                const text = typeof parsed === 'object' && parsed !== null
+            let text;
+            if (this.jsonViewerIsSSE && this.jsonViewerMode === 'merged') {
+                const chunks = _parseSSEChunks(this.jsonViewerContent);
+                const merged = _mergeSSEContent(chunks);
+                text = merged.reasoning && merged.content
+                    ? merged.reasoning + '\n\n---\n\n' + merged.content
+                    : merged.reasoning || merged.content || this.jsonViewerContent;
+            } else if (this.jsonViewerIsSSE) {
+                text = this.jsonViewerContent;
+            } else {
+                const parsed = this.jsonViewerParsed;
+                text = typeof parsed === 'object' && parsed !== null
                     ? JSON.stringify(parsed, null, 2)
-                    : String(parsed);
+                    : String(parsed || '');
+            }
+            try {
                 await navigator.clipboard.writeText(text);
                 this.jsonViewerCopyFeedback = 'Copied!';
                 setTimeout(() => { this.jsonViewerCopyFeedback = ''; }, 2000);
             } catch {
                 const textarea = document.createElement('textarea');
-                const text = typeof parsed === 'object' && parsed !== null
-                    ? JSON.stringify(parsed, null, 2)
-                    : String(parsed);
                 textarea.value = text;
                 document.body.appendChild(textarea);
                 textarea.select();
