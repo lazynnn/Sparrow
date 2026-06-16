@@ -226,3 +226,4 @@ __pycache__
 archives/
 sparrow.db
 config.yaml
+**/dist/
