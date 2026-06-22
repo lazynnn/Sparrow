@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import pathlib
 import shutil
-from typing import Optional
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 def _parse_size(value: str) -> int:
@@ -41,7 +40,9 @@ class AppConfig(BaseModel):
     proxy_port: int = Field(default=8080, ge=1, le=65535)
     ui_port: int = Field(default=8081, ge=1, le=65535)
     log_level: str = "INFO"
-    routes: list[RouteConfig] = Field(default_factory=lambda: [RouteConfig(prefix="/v1", target_url="https://api.openai.com/v1")])
+    routes: list[RouteConfig] = Field(
+        default_factory=lambda: [RouteConfig(prefix="/v1", target_url="https://api.openai.com/v1")]
+    )
     storage: StorageConfig = Field(default_factory=StorageConfig)
     pricing: dict[str, ModelPricing] = Field(default_factory=dict)
     stream_timeout: int = Field(default=300, ge=1)

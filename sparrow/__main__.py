@@ -11,14 +11,10 @@ from sparrow.config import load_config
 
 def main():
     parser = argparse.ArgumentParser(prog="sparrow", description="Sparrow LLM Gateway")
-    parser.add_argument(
-        "-c", "--config", default="config.yaml", help="Path to config file"
-    )
+    parser.add_argument("-c", "--config", default="config.yaml", help="Path to config file")
     parser.add_argument("--proxy-port", type=int, help="Override proxy port")
     parser.add_argument("--ui-port", type=int, help="Override web UI port")
-    parser.add_argument(
-        "--reload", action="store_true", help="Enable auto-reload for development"
-    )
+    parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -47,14 +43,14 @@ def main():
 
         proxy_config = uvicorn.Config(
             proxy_app,
-            host="0.0.0.0",
+            host="127.0.0.1",
             port=proxy_port,
             log_level=config.log_level.lower(),
             reload=args.reload,
         )
         web_config = uvicorn.Config(
             web_app,
-            host="0.0.0.0",
+            host="127.0.0.1",
             port=ui_port,
             log_level=config.log_level.lower(),
             reload=args.reload,
@@ -72,15 +68,16 @@ def main():
             proxy_server.should_exit = True
             web_server.should_exit = True
 
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, _signal_handler)
+        if sys.platform != "win32":
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                loop.add_signal_handler(sig, _signal_handler)
 
-        print(f"╔══════════════════════════════════════╗")
-        print(f"║     Sparrow LLM Gateway              ║")
-        print(f"╠══════════════════════════════════════╣")
+        print("╔══════════════════════════════════════╗")
+        print("║     Sparrow LLM Gateway              ║")
+        print("╠══════════════════════════════════════╣")
         print(f"║  Proxy:   http://0.0.0.0:{proxy_port:<12}║")
         print(f"║  Web UI:  http://0.0.0.0:{ui_port:<12}║")
-        print(f"╚══════════════════════════════════════╝")
+        print("╚══════════════════════════════════════╝")
 
         tasks = [
             asyncio.create_task(proxy_server.serve()),
