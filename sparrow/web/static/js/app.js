@@ -82,20 +82,51 @@ function _mergeSSEContent(chunks) {
     for (const chunk of chunks) {
         if (!chunk.parsed || chunk.isDone) continue;
         try {
-            const choices = chunk.parsed.choices;
-            if (!Array.isArray(choices)) continue;
-            for (const choice of choices) {
-                if (!choice.delta) continue;
-                const reasoning = choice.delta.reasoning_content ?? choice.delta.reasoning;
-                if (reasoning != null && reasoning !== '') {
-                    reasoningParts.push(reasoning);
+            const p = chunk.parsed;
+            if (Array.isArray(p.choices)) {
+                for (const choice of p.choices) {
+                    if (!choice.delta) continue;
+                    const reasoning = choice.delta.reasoning_content ?? choice.delta.reasoning;
+                    if (reasoning != null && reasoning !== '') reasoningParts.push(reasoning);
+                    if (choice.delta.content != null && choice.delta.content !== '') contentParts.push(choice.delta.content);
                 }
-                if (choice.delta.content != null && choice.delta.content !== '') {
-                    contentParts.push(choice.delta.content);
-                }
+            } else if (p.type === 'response.output_text.delta' && p.delta != null && p.delta !== '') {
+                contentParts.push(p.delta);
+            } else if (p.type === 'content_block_delta' && p.delta) {
+                if (p.delta.thinking != null && p.delta.thinking !== '') reasoningParts.push(p.delta.thinking);
+                if (p.delta.text != null && p.delta.text !== '') contentParts.push(p.delta.text);
             }
         } catch {}
     }
+    return { reasoning: reasoningParts.join(''), content: contentParts.join('') };
+}
+
+function _mergeNonSSEContent(parsed) {
+    const reasoningParts = [];
+    const contentParts = [];
+    try {
+        if (Array.isArray(parsed.choices)) {
+            for (const choice of parsed.choices) {
+                if (!choice.message) continue;
+                const reasoning = choice.message.reasoning_content ?? choice.message.reasoning;
+                if (reasoning != null && reasoning !== '') reasoningParts.push(reasoning);
+                if (choice.message.content != null && choice.message.content !== '') contentParts.push(choice.message.content);
+            }
+        } else if (Array.isArray(parsed.output)) {
+            for (const item of parsed.output) {
+                if (item.type === 'message' && Array.isArray(item.content)) {
+                    for (const c of item.content) {
+                        if (c.type === 'output_text' && c.text != null && c.text !== '') contentParts.push(c.text);
+                    }
+                }
+            }
+        } else if (Array.isArray(parsed.content)) {
+            for (const block of parsed.content) {
+                if (block.type === 'thinking' && block.thinking != null && block.thinking !== '') reasoningParts.push(block.thinking);
+                if (block.type === 'text' && block.text != null && block.text !== '') contentParts.push(block.text);
+            }
+        }
+    } catch {}
     return { reasoning: reasoningParts.join(''), content: contentParts.join('') };
 }
 
@@ -369,6 +400,9 @@ function sparrowApp() {
                 if (this.jsonViewerMode === 'chunks') return this.getChunksViewHtml();
                 if (this.jsonViewerMode === 'merged') return this.getMergedViewHtml();
             }
+            if (this.jsonViewerMode === 'merged' && typeof this.jsonViewerParsed === 'object' && this.jsonViewerParsed !== null) {
+                return this.getNonSSEMergedViewHtml();
+            }
             const parsed = this.jsonViewerParsed;
             if (parsed === null || parsed === undefined) return '<span class="json-null">null</span>';
             if (typeof parsed === 'string') {
@@ -420,7 +454,32 @@ function sparrowApp() {
             const chunks = _parseSSEChunks(this.jsonViewerContent);
             const merged = _mergeSSEContent(chunks);
             if (!merged.reasoning && !merged.content) {
-                return '<div class="text-sm text-gray-400 italic p-4">No extractable text content found in SSE chunks (no <span class="font-mono">choices[].delta.content</span> fields detected).</div>';
+                return '<div class="text-sm text-gray-400 italic p-4">No extractable text content found in SSE chunks.</div>';
+            }
+            let html = '';
+            if (merged.reasoning) {
+                html += '<div class="sse-merged-section">';
+                html += '<div class="sse-merged-label">Reasoning</div>';
+                html += '<pre class="whitespace-pre-wrap text-sm leading-relaxed">' + _escapeHtml(merged.reasoning) + '</pre>';
+                html += '</div>';
+            }
+            if (merged.reasoning && merged.content) {
+                html += '<hr class="sse-merged-divider">';
+            }
+            if (merged.content) {
+                html += '<div class="sse-merged-section">';
+                html += '<div class="sse-merged-label">Content</div>';
+                html += '<pre class="whitespace-pre-wrap text-sm leading-relaxed">' + _escapeHtml(merged.content) + '</pre>';
+                html += '</div>';
+            }
+            return html;
+        },
+
+        getNonSSEMergedViewHtml() {
+            const parsed = this.jsonViewerParsed;
+            const merged = _mergeNonSSEContent(parsed);
+            if (!merged.reasoning && !merged.content) {
+                return '<div class="text-sm text-gray-400 italic p-4">No extractable text content found.</div>';
             }
             let html = '';
             if (merged.reasoning) {
@@ -451,6 +510,11 @@ function sparrowApp() {
                     : merged.reasoning || merged.content || this.jsonViewerContent;
             } else if (this.jsonViewerIsSSE) {
                 text = this.jsonViewerContent;
+            } else if (this.jsonViewerMode === 'merged' && typeof this.jsonViewerParsed === 'object' && this.jsonViewerParsed !== null) {
+                const merged = _mergeNonSSEContent(this.jsonViewerParsed);
+                text = merged.reasoning && merged.content
+                    ? merged.reasoning + '\n\n---\n\n' + merged.content
+                    : merged.reasoning || merged.content || JSON.stringify(this.jsonViewerParsed, null, 2);
             } else {
                 const parsed = this.jsonViewerParsed;
                 text = typeof parsed === 'object' && parsed !== null
