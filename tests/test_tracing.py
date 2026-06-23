@@ -1,12 +1,10 @@
 import pytest
 
 from sparrow.tracing.cost import calculate_cost
-from sparrow.tracing.tracer import (
-    extract_model_name,
-    extract_token_usage,
-    extract_token_usage_from_sse,
-)
+from sparrow.tracing.parsers.openai_chat import OpenAIChatParser
 from sparrow.config import ModelPricing
+
+_chat = OpenAIChatParser()
 
 
 class TestCostCalculation:
@@ -41,27 +39,27 @@ class TestCostCalculation:
         assert cost == 0.0
 
 
-class TestTokenExtraction:
+class TestOpenAIChatTokenExtraction:
     def test_non_streaming_response(self):
         body = '{"id":"chatcmpl-123","usage":{"prompt_tokens":10,"completion_tokens":20,"total_tokens":30}}'
-        tokens = extract_token_usage(body)
+        tokens = _chat.extract_token_usage(body)
         assert tokens["prompt_tokens"] == 10
         assert tokens["completion_tokens"] == 20
         assert tokens["total_tokens"] == 30
 
     def test_missing_usage(self):
         body = '{"id":"chatcmpl-123"}'
-        tokens = extract_token_usage(body)
+        tokens = _chat.extract_token_usage(body)
         assert tokens["prompt_tokens"] is None
         assert tokens["completion_tokens"] is None
         assert tokens["total_tokens"] is None
 
     def test_none_body(self):
-        tokens = extract_token_usage(None)
+        tokens = _chat.extract_token_usage(None)
         assert tokens["prompt_tokens"] is None
 
     def test_invalid_json(self):
-        tokens = extract_token_usage("not json")
+        tokens = _chat.extract_token_usage("not json")
         assert tokens["prompt_tokens"] is None
 
     def test_sse_streaming(self):
@@ -71,7 +69,7 @@ class TestTokenExtraction:
             'data: {"id":"chatcmpl-1","usage":{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7}}\n'
             "data: [DONE]\n"
         )
-        tokens = extract_token_usage_from_sse(chunks)
+        tokens = _chat.extract_token_usage_from_sse(chunks)
         assert tokens["prompt_tokens"] == 5
         assert tokens["completion_tokens"] == 2
         assert tokens["total_tokens"] == 7
@@ -81,25 +79,25 @@ class TestTokenExtraction:
             'data: {"id":"chatcmpl-1","choices":[{"delta":{"content":"Hi"}}]}\n'
             "data: [DONE]\n"
         )
-        tokens = extract_token_usage_from_sse(chunks)
+        tokens = _chat.extract_token_usage_from_sse(chunks)
         assert tokens["prompt_tokens"] is None
 
     def test_sse_empty(self):
-        tokens = extract_token_usage_from_sse("")
+        tokens = _chat.extract_token_usage_from_sse("")
         assert tokens["prompt_tokens"] is None
 
 
-class TestModelNameExtraction:
+class TestOpenAIChatModelNameExtraction:
     def test_extract_model(self):
         body = '{"model":"gpt-4o","messages":[]}'
-        assert extract_model_name(body) == "gpt-4o"
+        assert _chat.extract_model_name(body) == "gpt-4o"
 
     def test_no_model(self):
         body = '{"messages":[]}'
-        assert extract_model_name(body) is None
+        assert _chat.extract_model_name(body) is None
 
     def test_none_body(self):
-        assert extract_model_name(None) is None
+        assert _chat.extract_model_name(None) is None
 
     def test_invalid_json(self):
-        assert extract_model_name("not json") is None
+        assert _chat.extract_model_name("not json") is None

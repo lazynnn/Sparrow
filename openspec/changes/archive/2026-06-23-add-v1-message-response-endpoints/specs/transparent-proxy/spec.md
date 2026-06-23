@@ -1,10 +1,4 @@
-# Transparent Proxy
-
-## Purpose
-
-Act as a transparent reverse proxy to OpenAI-compatible and Anthropic-compatible API endpoints, forwarding requests unchanged while supporting SSE streaming, route-based target selection, and latency measurement.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Transparent reverse proxy
 The gateway SHALL act as a transparent reverse proxy to OpenAI-compatible and Anthropic-compatible API endpoints. All HTTP methods, headers, query parameters, and request bodies SHALL be forwarded unchanged to the target URL. Response status codes, headers, and bodies SHALL be returned to the client unchanged. When upstream proxy is configured, requests SHALL be routed through the specified proxy. The gateway SHALL use the request path to select the appropriate response parser for tracing purposes.
@@ -40,43 +34,3 @@ The gateway SHALL act as a transparent reverse proxy to OpenAI-compatible and An
 #### Scenario: Unknown endpoint path falls back to default parser
 - **WHEN** a client sends a request with a path that does not match any registered endpoint parser (e.g., `/v1/embeddings`)
 - **THEN** the gateway SHALL use the default OpenAI Chat Completions parser for tracing, and the request SHALL still be proxied normally
-
-### Requirement: SSE streaming proxy
-The gateway SHALL support Server-Sent Events (SSE) streaming. When a request is made with `stream: true`, the gateway SHALL forward chunks to the client in real-time while accumulating the full response for tracing.
-
-#### Scenario: Streaming chat completion
-- **WHEN** a client sends a POST to `/v1/chat/completions` with `"stream": true` in the body
-- **THEN** the gateway opens a streaming connection to the target, forwards each SSE chunk to the client immediately, and accumulates all chunks for the trace record
-
-#### Scenario: Streaming error mid-stream
-- **WHEN** the target API returns an error after some SSE chunks have been sent
-- **THEN** the gateway SHALL forward the error to the client and record the partial trace with an error status
-
-#### Scenario: Streaming connection timeout
-- **WHEN** the streaming connection to the target is idle for longer than the configured timeout
-- **THEN** the gateway SHALL close the connection and record the trace with a timeout status
-
-### Requirement: Route-based target configuration
-The gateway SHALL support configuring different target URLs per route prefix. Requests matching a route prefix SHALL be proxied to the corresponding target.
-
-#### Scenario: Multiple target APIs
-- **WHEN** the gateway is configured with route `/v1/openai` targeting `https://api.openai.com/v1` and route `/v1/azure` targeting `https://myresource.openai.azure.com/v1`
-- **THEN** requests to `/v1/openai/chat/completions` SHALL be proxied to `https://api.openai.com/v1/chat/completions` and requests to `/v1/azure/chat/completions` SHALL be proxied to `https://myresource.openai.azure.com/v1/chat/completions`
-
-### Requirement: API key passthrough
-The gateway SHALL forward the client's Authorization header to the target API without modification. The gateway SHALL NOT require its own API key configuration for proxying.
-
-#### Scenario: Forward bearer token
-- **WHEN** a client sends a request with `Authorization: Bearer sk-xxx` header
-- **THEN** the gateway SHALL forward the same header to the target API
-
-### Requirement: Proxy latency measurement
-The gateway SHALL measure and record the total proxy latency (time from receiving the request to sending the complete response) for each request.
-
-#### Scenario: Record latency for non-streaming request
-- **WHEN** a non-streaming request is proxied
-- **THEN** the trace SHALL include the total round-trip latency in milliseconds
-
-#### Scenario: Record latency for streaming request
-- **WHEN** a streaming request is proxied
-- **THEN** the trace SHALL include the time-to-first-byte (TTFB) and total stream duration in milliseconds

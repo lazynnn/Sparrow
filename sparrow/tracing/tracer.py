@@ -1,66 +1,13 @@
 from __future__ import annotations
 
-import json
 import time
-from typing import Any, Optional
+from typing import Optional
 
-from sparrow.config import AppConfig, ModelPricing
+from sparrow.config import AppConfig
 from sparrow.database import Database
 from sparrow.models import Trace, truncate_body
 from sparrow.tracing.cost import calculate_cost
-
-
-def extract_model_name(request_body: Optional[str]) -> Optional[str]:
-    if not request_body:
-        return None
-    try:
-        data = json.loads(request_body)
-        return data.get("model")
-    except (json.JSONDecodeError, AttributeError):
-        return None
-
-
-def extract_token_usage(response_body: Optional[str]) -> dict[str, Optional[int]]:
-    if not response_body:
-        return {"prompt_tokens": None, "completion_tokens": None, "total_tokens": None}
-    try:
-        data = json.loads(response_body)
-        usage = data.get("usage", {})
-        return {
-            "prompt_tokens": usage.get("prompt_tokens"),
-            "completion_tokens": usage.get("completion_tokens"),
-            "total_tokens": usage.get("total_tokens"),
-        }
-    except (json.JSONDecodeError, AttributeError):
-        return {"prompt_tokens": None, "completion_tokens": None, "total_tokens": None}
-
-
-def extract_token_usage_from_sse(
-    accumulated_chunks: str,
-) -> dict[str, Optional[int]]:
-    if not accumulated_chunks:
-        return {"prompt_tokens": None, "completion_tokens": None, "total_tokens": None}
-
-    for line in reversed(accumulated_chunks.split("\n")):
-        line = line.strip()
-        if not line.startswith("data: "):
-            continue
-        data_str = line[6:].strip()
-        if data_str == "[DONE]":
-            continue
-        try:
-            data = json.loads(data_str)
-            usage = data.get("usage")
-            if usage:
-                return {
-                    "prompt_tokens": usage.get("prompt_tokens"),
-                    "completion_tokens": usage.get("completion_tokens"),
-                    "total_tokens": usage.get("total_tokens"),
-                }
-        except json.JSONDecodeError:
-            continue
-
-    return {"prompt_tokens": None, "completion_tokens": None, "total_tokens": None}
+from sparrow.tracing.parsers import get_parser
 
 
 async def save_trace(
@@ -81,12 +28,13 @@ async def save_trace(
 ) -> None:
     max_bytes = config.storage.max_body_bytes
 
-    model_name = extract_model_name(request_body)
+    parser = get_parser(request_path)
+    model_name = parser.extract_model_name(request_body)
 
     if is_streaming:
-        tokens = extract_token_usage_from_sse(response_body or "")
+        tokens = parser.extract_token_usage_from_sse(response_body or "")
     else:
-        tokens = extract_token_usage(response_body)
+        tokens = parser.extract_token_usage(response_body)
 
     cost = calculate_cost(
         tokens["prompt_tokens"],
