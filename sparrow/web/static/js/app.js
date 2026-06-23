@@ -306,6 +306,9 @@ function sparrowApp() {
 
         connectSSE() {
             try {
+                if (this.eventSource) {
+                    this.eventSource.close();
+                }
                 this.eventSource = new EventSource('/api/traces/stream');
                 this.eventSource.addEventListener('trace', (event) => {
                     if (this.currentView === 'traces' && this.pagination.page === 1) {

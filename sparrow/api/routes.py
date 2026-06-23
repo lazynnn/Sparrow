@@ -109,6 +109,30 @@ async def list_traces(
         )
 
 
+@router.get("/traces/stream")
+async def stream_traces():
+    from sse_starlette.sse import EventSourceResponse
+
+    queue: asyncio.Queue = asyncio.Queue()
+    _trace_events.append(queue)
+
+    async def event_generator():
+        try:
+            while True:
+                try:
+                    data = await asyncio.wait_for(queue.get(), timeout=30)
+                    yield {"event": "trace", "data": data}
+                except asyncio.TimeoutError:
+                    yield {"event": "ping", "data": ""}
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if queue in _trace_events:
+                _trace_events.remove(queue)
+
+    return EventSourceResponse(event_generator())
+
+
 @router.get("/traces/{trace_id}", response_model=TraceDetail)
 async def get_trace(trace_id: int):
     from sparrow.api.routes import _db
@@ -231,30 +255,6 @@ async def import_archive_endpoint(req: ArchiveImportRequest):
 
     count = await import_archive(_db, req.path)
     return {"message": f"Imported {count} traces", "count": count}
-
-
-@router.get("/traces/stream")
-async def stream_traces():
-    from sse_starlette.sse import EventSourceResponse
-
-    queue: asyncio.Queue = asyncio.Queue()
-    _trace_events.append(queue)
-
-    async def event_generator():
-        try:
-            while True:
-                try:
-                    data = await asyncio.wait_for(queue.get(), timeout=30)
-                    yield {"event": "trace", "data": data}
-                except asyncio.TimeoutError:
-                    yield {"event": "ping", "data": ""}
-        except asyncio.CancelledError:
-            pass
-        finally:
-            if queue in _trace_events:
-                _trace_events.remove(queue)
-
-    return EventSourceResponse(event_generator())
 
 
 async def notify_new_trace(trace_data: dict):
