@@ -57,7 +57,7 @@ function _pathHasMatch(path, searchPaths) {
 
 function _isSSE(str) {
     if (!str || typeof str !== 'string') return false;
-    return str.split('\n').some(line => line.startsWith('data: '));
+    return str.split('\n').some(line => /^data:\s?\S/.test(line));
 }
 
 function _parseSSEChunks(str) {
@@ -67,8 +67,9 @@ function _parseSSEChunks(str) {
     let index = 0;
     for (const line of lines) {
         const trimmed = line.trim();
-        if (!trimmed.startsWith('data: ')) continue;
-        const data = trimmed.slice(6);
+        const match = trimmed.match(/^data:\s*(.*)/);
+        if (!match) continue;
+        const data = match[1];
         const parsed = data === '[DONE]' ? null : (() => { try { return JSON.parse(data); } catch { return null; } })();
         chunks.push({ index: ++index, raw: trimmed, data, parsed, isDone: data === '[DONE]' });
     }
@@ -383,8 +384,10 @@ function sparrowApp() {
             let html = '<pre class="whitespace-pre-wrap text-xs">';
             for (let i = 0; i < lines.length; i++) {
                 const line = _escapeHtml(lines[i]);
-                if (lines[i].startsWith('data: ')) {
-                    html += '<span class="sse-data-prefix">data: </span>' + line.slice(6);
+                const prefixMatch = lines[i].match(/^(data:\s*)/);
+                if (prefixMatch) {
+                    const prefixLen = prefixMatch[1].length;
+                    html += '<span class="sse-data-prefix">' + line.slice(0, prefixLen) + '</span>' + line.slice(prefixLen);
                 } else {
                     html += line;
                 }
