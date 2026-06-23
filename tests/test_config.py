@@ -1,6 +1,12 @@
 import pytest
 
-from sparrow.config import AppConfig, load_config, StorageConfig, RouteConfig
+from sparrow.config import (
+    AppConfig,
+    UpstreamProxyConfig,
+    load_config,
+    StorageConfig,
+    RouteConfig,
+)
 
 
 class TestConfigValidation:
@@ -46,3 +52,60 @@ class TestConfigValidation:
         config = load_config(str(config_path))
         assert config_path.exists()
         assert config.proxy_port == 8080
+
+
+class TestUpstreamProxyConfig:
+    def test_defaults(self):
+        proxy = UpstreamProxyConfig()
+        assert proxy.http_proxy is None
+        assert proxy.https_proxy is None
+        assert proxy.no_proxy is None
+        assert proxy.has_proxy is False
+
+    def test_valid_http_proxy(self):
+        proxy = UpstreamProxyConfig(http_proxy="http://proxy.corp:8080")
+        assert proxy.http_proxy == "http://proxy.corp:8080"
+        assert proxy.has_proxy is True
+
+    def test_valid_https_proxy(self):
+        proxy = UpstreamProxyConfig(https_proxy="https://proxy.corp:8443")
+        assert proxy.https_proxy == "https://proxy.corp:8443"
+
+    def test_valid_socks5_proxy(self):
+        proxy = UpstreamProxyConfig(http_proxy="socks5://proxy.corp:1080")
+        assert proxy.http_proxy == "socks5://proxy.corp:1080"
+
+    def test_invalid_proxy_url(self):
+        with pytest.raises(Exception):
+            UpstreamProxyConfig(http_proxy="not-a-url")
+
+    def test_invalid_proxy_no_scheme(self):
+        with pytest.raises(Exception):
+            UpstreamProxyConfig(https_proxy="proxy.corp:8080")
+
+    def test_empty_string_treated_as_none(self):
+        proxy = UpstreamProxyConfig(http_proxy="  ")
+        assert proxy.http_proxy is None
+        assert proxy.has_proxy is False
+
+    def test_no_proxy_stripped(self):
+        proxy = UpstreamProxyConfig(no_proxy="  localhost,.internal  ")
+        assert proxy.no_proxy == "localhost,.internal"
+
+    def test_no_proxy_empty_becomes_none(self):
+        proxy = UpstreamProxyConfig(no_proxy="  ")
+        assert proxy.no_proxy is None
+
+    def test_empty_section_in_app_config(self):
+        config = AppConfig(upstream_proxy={})
+        assert config.upstream_proxy.has_proxy is False
+
+    def test_proxy_in_app_config(self):
+        config = AppConfig(
+            upstream_proxy={
+                "http_proxy": "http://proxy:8080",
+                "https_proxy": "http://proxy:8080",
+            }
+        )
+        assert config.upstream_proxy.has_proxy is True
+        assert config.upstream_proxy.http_proxy == "http://proxy:8080"

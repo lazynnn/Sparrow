@@ -7,7 +7,7 @@ Act as a transparent reverse proxy to OpenAI-compatible API endpoints, forwardin
 ## Requirements
 
 ### Requirement: Transparent reverse proxy
-The gateway SHALL act as a transparent reverse proxy to OpenAI-compatible API endpoints. All HTTP methods, headers, query parameters, and request bodies SHALL be forwarded unchanged to the target URL. Response status codes, headers, and bodies SHALL be returned to the client unchanged.
+The gateway SHALL act as a transparent reverse proxy to OpenAI-compatible API endpoints. All HTTP methods, headers, query parameters, and request bodies SHALL be forwarded unchanged to the target URL. Response status codes, headers, and bodies SHALL be returned to the client unchanged. When upstream proxy is configured, requests SHALL be routed through the specified proxy.
 
 #### Scenario: Proxy a chat completion request
 - **WHEN** a client sends a POST request to the gateway with path `/v1/chat/completions` and a JSON body
@@ -20,6 +20,14 @@ The gateway SHALL act as a transparent reverse proxy to OpenAI-compatible API en
 #### Scenario: Proxy returns target error responses
 - **WHEN** the target API returns an error (4xx or 5xx status code)
 - **THEN** the gateway SHALL return the exact same status code, headers, and body to the client
+
+#### Scenario: Proxy request through configured upstream proxy
+- **WHEN** the configuration contains `upstream_proxy: { https_proxy: "http://proxy.corp:8080" }` and a client sends a request to an HTTPS target
+- **THEN** the gateway SHALL forward the request through `http://proxy.corp:8080` to reach the target
+
+#### Scenario: Proxy request bypasses proxy for no-proxy host
+- **WHEN** the configuration contains `upstream_proxy: { https_proxy: "http://proxy.corp:8080", no_proxy: "localhost,.internal" }` and a client sends a request to a host matching a no-proxy pattern
+- **THEN** the gateway SHALL connect directly to the target without using the proxy
 
 ### Requirement: SSE streaming proxy
 The gateway SHALL support Server-Sent Events (SSE) streaming. When a request is made with `stream: true`, the gateway SHALL forward chunks to the client in real-time while accumulating the full response for tracing.

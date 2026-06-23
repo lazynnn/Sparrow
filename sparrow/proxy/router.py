@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.background import BackgroundTasks
 from fastapi.responses import StreamingResponse
 
-from sparrow.config import AppConfig
+from sparrow.config import AppConfig, UpstreamProxyConfig
 from sparrow.database import Database
 from sparrow.proxy.streaming import filter_headers
 from sparrow.tracing.tracer import save_trace
@@ -42,10 +42,67 @@ def _get_request_path(request: Request) -> str:
     return path
 
 
-def create_proxy_app(config: AppConfig, db: Database) -> FastAPI:
-    client = httpx.AsyncClient(
-        timeout=httpx.Timeout(config.stream_timeout, connect=10.0),
+def _build_proxy_client(
+    proxy_config: UpstreamProxyConfig, timeout: httpx.Timeout
+) -> httpx.AsyncClient:
+    if not proxy_config.has_proxy:
+        return httpx.AsyncClient(
+            timeout=timeout,
+            follow_redirects=True,
+            trust_env=True,
+        )
+
+    http_proxy = proxy_config.http_proxy
+    https_proxy = proxy_config.https_proxy
+    no_proxy = proxy_config.no_proxy
+
+    same_proxy = http_proxy and https_proxy and http_proxy == https_proxy
+
+    if same_proxy and not no_proxy:
+        return httpx.AsyncClient(
+            proxy=http_proxy,
+            timeout=timeout,
+            follow_redirects=True,
+            trust_env=False,
+        )
+
+    if (
+        (http_proxy or https_proxy)
+        and not (http_proxy and https_proxy and not same_proxy)
+        and not no_proxy
+    ):
+        single_proxy = http_proxy or https_proxy
+        return httpx.AsyncClient(
+            proxy=single_proxy,
+            timeout=timeout,
+            follow_redirects=True,
+            trust_env=False,
+        )
+
+    mounts: dict[str, httpx.AsyncBaseTransport | None] = {}
+    http_transport = (
+        httpx.AsyncHTTPTransport(proxy=httpx.Proxy(http_proxy)) if http_proxy else None
+    )
+    https_transport = (
+        httpx.AsyncHTTPTransport(proxy=httpx.Proxy(https_proxy))
+        if https_proxy
+        else None
+    )
+    mounts["http://"] = http_transport
+    mounts["https://"] = https_transport
+
+    return httpx.AsyncClient(
+        mounts=mounts,
+        timeout=timeout,
         follow_redirects=True,
+        trust_env=False,
+    )
+
+
+def create_proxy_app(config: AppConfig, db: Database) -> FastAPI:
+    client = _build_proxy_client(
+        config.upstream_proxy,
+        httpx.Timeout(config.stream_timeout, connect=10.0),
     )
 
     @asynccontextmanager

@@ -2,16 +2,16 @@
 
 ## Purpose
 
-Define the YAML-based configuration system for the LLM gateway, covering server ports, route mapping, storage, pricing, and validation.
+Define the YAML-based configuration system for the LLM gateway, covering server ports, route mapping, storage, pricing, upstream proxy, and validation.
 
 ## Requirements
 
 ### Requirement: YAML configuration file
-The gateway SHALL read its configuration from a YAML file. The configuration SHALL include: server ports, target API base URLs with route prefixes, model pricing table, storage settings, and logging level.
+The gateway SHALL read its configuration from a YAML file. The configuration SHALL include: server ports, target API base URLs with route prefixes, model pricing table, storage settings, logging level, and upstream proxy settings.
 
 #### Scenario: Load configuration from file
 - **WHEN** the gateway starts
-- **THEN** it SHALL read the configuration from the specified YAML file and apply all settings
+- **THEN** it SHALL read the configuration from the specified YAML file and apply all settings including upstream proxy if present
 
 #### Scenario: Missing configuration file
 - **WHEN** the specified configuration file does not exist
@@ -71,6 +71,10 @@ The gateway SHALL validate the configuration at startup using Pydantic models. I
 #### Scenario: Missing required route target URL
 - **WHEN** a route mapping is missing the `target_url` field
 - **THEN** the gateway SHALL fail to start and print a validation error identifying the invalid route
+
+#### Scenario: Invalid proxy URL in upstream_proxy
+- **WHEN** the configuration contains an invalid URL in the upstream_proxy section
+- **THEN** the gateway SHALL fail to start and print a validation error identifying the invalid proxy URL
 
 ### Requirement: Example configuration file
 The gateway SHALL include an `config.example.yaml` file in the project root with all available configuration options documented with comments.

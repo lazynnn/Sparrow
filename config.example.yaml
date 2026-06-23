@@ -51,3 +51,14 @@ pricing:
 
 # Streaming timeout in seconds (for SSE connections)
 stream_timeout: 300
+
+# Upstream proxy settings
+# When set, these take precedence over system environment variables (HTTP_PROXY, HTTPS_PROXY, NO_PROXY).
+# When omitted or empty, the gateway falls back to system env vars (trust_env=True).
+upstream_proxy:
+  # HTTP proxy URL for upstream HTTP requests
+  # http_proxy: "http://proxy.corp:8080"
+  # HTTPS proxy URL for upstream HTTPS requests
+  # https_proxy: "http://proxy.corp:8080"
+  # Comma-separated list of hosts that bypass the proxy (same format as NO_PROXY env var)
+  # no_proxy: "localhost,127.0.0.1,.internal"
