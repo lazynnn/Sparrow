@@ -11,10 +11,14 @@ from sparrow.config import load_config
 
 def main():
     parser = argparse.ArgumentParser(prog="sparrow", description="Sparrow LLM Gateway")
-    parser.add_argument("-c", "--config", default="config.yaml", help="Path to config file")
+    parser.add_argument(
+        "-c", "--config", default="config.yaml", help="Path to config file"
+    )
     parser.add_argument("--proxy-port", type=int, help="Override proxy port")
     parser.add_argument("--ui-port", type=int, help="Override web UI port")
-    parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
+    parser.add_argument(
+        "--reload", action="store_true", help="Enable auto-reload for development"
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -33,6 +37,12 @@ def main():
     from sparrow.web_ui import create_web_app
 
     db = Database(config.storage.database)
+
+    if not config.upstream_proxy.ssl_verify:
+        logger.warning(
+            "SSL verification is DISABLED for upstream requests. "
+            "This exposes requests to man-in-the-middle attacks."
+        )
 
     async def start():
         await db.init()

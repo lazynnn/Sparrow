@@ -62,3 +62,5 @@ upstream_proxy:
   # https_proxy: "http://proxy.corp:8080"
   # Comma-separated list of hosts that bypass the proxy (same format as NO_PROXY env var)
   # no_proxy: "localhost,127.0.0.1,.internal"
+  # Disable SSL certificate verification for upstream requests (default: true)
+  # ssl_verify: false

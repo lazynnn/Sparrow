@@ -40,6 +40,7 @@ class UpstreamProxyConfig(BaseModel):
     http_proxy: str | None = None
     https_proxy: str | None = None
     no_proxy: str | None = None
+    ssl_verify: bool = True
 
     @field_validator("http_proxy", "https_proxy")
     @classmethod

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import json
 import time
 from contextlib import asynccontextmanager
@@ -42,6 +43,52 @@ def _get_request_path(request: Request) -> str:
     return path
 
 
+def _should_bypass_proxy(host: str, no_proxy: str) -> bool:
+    if not no_proxy:
+        return False
+    for pattern in no_proxy.split(","):
+        pattern = pattern.strip()
+        if not pattern:
+            continue
+        if pattern.startswith("."):
+            if host == pattern[1:] or host.endswith(pattern):
+                return True
+        elif "/" in pattern:
+            try:
+                network = ipaddress.ip_network(pattern, strict=False)
+                addr = ipaddress.ip_address(host)
+                if addr in network:
+                    return True
+            except ValueError:
+                pass
+        else:
+            if host == pattern:
+                return True
+    return False
+
+
+class _NoProxyTransport(httpx.AsyncBaseTransport):
+    def __init__(
+        self,
+        proxy_transport: httpx.AsyncBaseTransport,
+        direct_transport: httpx.AsyncBaseTransport,
+        no_proxy: str,
+    ):
+        self._proxy_transport = proxy_transport
+        self._direct_transport = direct_transport
+        self._no_proxy = no_proxy
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        host = request.url.host
+        if _should_bypass_proxy(host, self._no_proxy):
+            return await self._direct_transport.handle_async_request(request)
+        return await self._proxy_transport.handle_async_request(request)
+
+    async def aclose(self) -> None:
+        await self._proxy_transport.aclose()
+        await self._direct_transport.aclose()
+
+
 def _build_proxy_client(
     proxy_config: UpstreamProxyConfig, timeout: httpx.Timeout
 ) -> httpx.AsyncClient:
@@ -50,11 +97,13 @@ def _build_proxy_client(
             timeout=timeout,
             follow_redirects=True,
             trust_env=True,
+            verify=proxy_config.ssl_verify,
         )
 
     http_proxy = proxy_config.http_proxy
     https_proxy = proxy_config.https_proxy
     no_proxy = proxy_config.no_proxy
+    verify = proxy_config.ssl_verify
 
     same_proxy = http_proxy and https_proxy and http_proxy == https_proxy
 
@@ -64,6 +113,7 @@ def _build_proxy_client(
             timeout=timeout,
             follow_redirects=True,
             trust_env=False,
+            verify=verify,
         )
 
     if (
@@ -77,14 +127,64 @@ def _build_proxy_client(
             timeout=timeout,
             follow_redirects=True,
             trust_env=False,
+            verify=verify,
+        )
+
+    if no_proxy:
+        direct_transport = httpx.AsyncHTTPTransport(verify=verify)
+        if same_proxy:
+            proxy_transport = httpx.AsyncHTTPTransport(
+                proxy=httpx.Proxy(http_proxy), verify=verify
+            )
+        else:
+            http_pt = (
+                httpx.AsyncHTTPTransport(proxy=httpx.Proxy(http_proxy), verify=verify)
+                if http_proxy
+                else None
+            )
+            https_pt = (
+                httpx.AsyncHTTPTransport(proxy=httpx.Proxy(https_proxy), verify=verify)
+                if https_proxy
+                else None
+            )
+
+            mounts: dict[str, httpx.AsyncBaseTransport | None] = {}
+            mounts["http://"] = (
+                _NoProxyTransport(http_pt, direct_transport, no_proxy)
+                if http_pt
+                else direct_transport
+            )
+            mounts["https://"] = (
+                _NoProxyTransport(https_pt, direct_transport, no_proxy)
+                if https_pt
+                else direct_transport
+            )
+
+            return httpx.AsyncClient(
+                mounts=mounts,
+                timeout=timeout,
+                follow_redirects=True,
+                trust_env=False,
+                verify=verify,
+            )
+
+        transport = _NoProxyTransport(proxy_transport, direct_transport, no_proxy)
+        return httpx.AsyncClient(
+            transport=transport,
+            timeout=timeout,
+            follow_redirects=True,
+            trust_env=False,
+            verify=verify,
         )
 
     mounts: dict[str, httpx.AsyncBaseTransport | None] = {}
     http_transport = (
-        httpx.AsyncHTTPTransport(proxy=httpx.Proxy(http_proxy)) if http_proxy else None
+        httpx.AsyncHTTPTransport(proxy=httpx.Proxy(http_proxy), verify=verify)
+        if http_proxy
+        else None
     )
     https_transport = (
-        httpx.AsyncHTTPTransport(proxy=httpx.Proxy(https_proxy))
+        httpx.AsyncHTTPTransport(proxy=httpx.Proxy(https_proxy), verify=verify)
         if https_proxy
         else None
     )
@@ -96,6 +196,7 @@ def _build_proxy_client(
         timeout=timeout,
         follow_redirects=True,
         trust_env=False,
+        verify=verify,
     )
 
 

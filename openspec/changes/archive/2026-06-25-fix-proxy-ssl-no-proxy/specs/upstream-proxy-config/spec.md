@@ -1,10 +1,4 @@
-# Upstream Proxy Configuration
-
-## Purpose
-
-Configure upstream HTTP/HTTPS proxy and no-proxy lists in config.yaml, with explicit precedence over system environment variables.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Upstream proxy configuration
 The gateway SHALL support configuring upstream HTTP and HTTPS proxy URLs and a no-proxy list via the `upstream_proxy` section in config.yaml. The section SHALL contain optional fields: `http_proxy`, `https_proxy`, `no_proxy`, and `ssl_verify`. When `no_proxy` is configured, the gateway SHALL evaluate each request's target host against the no-proxy patterns and bypass the proxy for matching hosts. The no_proxy field SHALL support: exact hostnames, domain suffixes (patterns starting with `.`), and CIDR network ranges.
