@@ -8,13 +8,41 @@ import uvicorn
 
 from sparrow.config import load_config
 
+_SHUTDOWN_LOGGERS = (
+    "uvicorn",
+    "uvicorn.error",
+    "uvicorn.access",
+    "anyio",
+    "httpcore",
+    "httptools",
+)
+
+
+class ShutdownLogFilter(logging.Filter):
+    def __init__(self):
+        super().__init__()
+        self.shutdown_active = False
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if not self.shutdown_active:
+            return True
+        if record.levelno >= logging.WARNING and record.name.startswith(
+            _SHUTDOWN_LOGGERS
+        ):
+            return False
+        return True
+
 
 def main():
     parser = argparse.ArgumentParser(prog="sparrow", description="Sparrow LLM Gateway")
-    parser.add_argument("-c", "--config", default="config.yaml", help="Path to config file")
+    parser.add_argument(
+        "-c", "--config", default="config.yaml", help="Path to config file"
+    )
     parser.add_argument("--proxy-port", type=int, help="Override proxy port")
     parser.add_argument("--ui-port", type=int, help="Override web UI port")
-    parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
+    parser.add_argument(
+        "--reload", action="store_true", help="Enable auto-reload for development"
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -24,6 +52,10 @@ def main():
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     logger = logging.getLogger("sparrow")
+
+    shutdown_filter = ShutdownLogFilter()
+    for logger_name in _SHUTDOWN_LOGGERS:
+        logging.getLogger(logger_name).addFilter(shutdown_filter)
 
     proxy_port = args.proxy_port or config.proxy_port
     ui_port = args.ui_port or config.ui_port
@@ -52,6 +84,7 @@ def main():
             port=proxy_port,
             log_level=config.log_level.lower(),
             reload=args.reload,
+            timeout_graceful_shutdown=5,
         )
         web_config = uvicorn.Config(
             web_app,
@@ -59,6 +92,7 @@ def main():
             port=ui_port,
             log_level=config.log_level.lower(),
             reload=args.reload,
+            timeout_graceful_shutdown=5,
         )
 
         proxy_server = uvicorn.Server(proxy_config)
@@ -69,6 +103,7 @@ def main():
 
         def _signal_handler():
             logger.info("Shutdown signal received")
+            shutdown_filter.shutdown_active = True
             stop.set()
             proxy_server.should_exit = True
             web_server.should_exit = True
