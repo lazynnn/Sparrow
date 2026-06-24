@@ -11,14 +11,10 @@ from sparrow.config import load_config
 
 def main():
     parser = argparse.ArgumentParser(prog="sparrow", description="Sparrow LLM Gateway")
-    parser.add_argument(
-        "-c", "--config", default="config.yaml", help="Path to config file"
-    )
+    parser.add_argument("-c", "--config", default="config.yaml", help="Path to config file")
     parser.add_argument("--proxy-port", type=int, help="Override proxy port")
     parser.add_argument("--ui-port", type=int, help="Override web UI port")
-    parser.add_argument(
-        "--reload", action="store_true", help="Enable auto-reload for development"
-    )
+    parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -40,8 +36,7 @@ def main():
 
     if not config.upstream_proxy.ssl_verify:
         logger.warning(
-            "SSL verification is DISABLED for upstream requests. "
-            "This exposes requests to man-in-the-middle attacks."
+            "SSL verification is DISABLED for upstream requests. This exposes requests to man-in-the-middle attacks."
         )
 
     async def start():
@@ -53,14 +48,14 @@ def main():
 
         proxy_config = uvicorn.Config(
             proxy_app,
-            host="127.0.0.1",
+            host="0.0.0.0",
             port=proxy_port,
             log_level=config.log_level.lower(),
             reload=args.reload,
         )
         web_config = uvicorn.Config(
             web_app,
-            host="127.0.0.1",
+            host="0.0.0.0",
             port=ui_port,
             log_level=config.log_level.lower(),
             reload=args.reload,
@@ -85,8 +80,8 @@ def main():
         print("╔══════════════════════════════════════╗")
         print("║     Sparrow LLM Gateway              ║")
         print("╠══════════════════════════════════════╣")
-        print(f"║  Proxy:   http://0.0.0.0:{proxy_port:<12}║")
-        print(f"║  Web UI:  http://0.0.0.0:{ui_port:<12}║")
+        print(f"║  Proxy:   http://127.0.0.1:{proxy_port:<12}║")
+        print(f"║  Web UI:  http://127.0.0.1:{ui_port:<12}║")
         print("╚══════════════════════════════════════╝")
 
         tasks = [
