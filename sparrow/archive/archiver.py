@@ -11,12 +11,13 @@ from sqlalchemy import delete, select, func
 
 from sparrow.database import Database
 from sparrow.models import Trace
+from sparrow.utils import utc_isoformat
 
 
 def _trace_to_dict(trace: Trace) -> dict:
     return {
         "id": trace.id,
-        "timestamp": trace.timestamp.isoformat() if trace.timestamp else None,
+        "timestamp": utc_isoformat(trace.timestamp),
         "request_method": trace.request_method,
         "request_path": trace.request_path,
         "request_headers": trace.request_headers,
@@ -61,8 +62,8 @@ async def create_archive(
             return ""
 
         date_range = {
-            "oldest": traces[0].timestamp.isoformat() if traces else None,
-            "newest": traces[-1].timestamp.isoformat() if traces else None,
+            "oldest": utc_isoformat(traces[0].timestamp) if traces else None,
+            "newest": utc_isoformat(traces[-1].timestamp) if traces else None,
         }
 
         metadata = {

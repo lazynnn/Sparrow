@@ -260,7 +260,7 @@
                         <td class="px-5 py-3 font-mono text-xs" x-text="a.filename"></td>
                         <td class="px-5 py-3" x-text="a.trace_count || '-'"></td>
                         <td class="px-5 py-3" x-text="formatBytes(a.size)"></td>
-                        <td class="px-5 py-3 text-xs" x-text="a.archive_timestamp || '-'"></td>
+                        <td class="px-5 py-3 text-xs" x-text="formatTime(a.archive_timestamp)"></td>
                         <td class="px-5 py-3">
                             <button @click="importArchive(a.path)" class="text-primary-600 hover:text-primary-700 text-xs font-medium">Import</button>
                         </td>

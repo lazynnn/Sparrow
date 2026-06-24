@@ -223,8 +223,14 @@ function sparrowApp() {
             });
             if (this.filters.model) params.set('model', this.filters.model);
             if (this.filters.status) params.set('status', this.filters.status);
-            if (this.filters.dateFrom) params.set('date_from', this.filters.dateFrom);
-            if (this.filters.dateTo) params.set('date_to', this.filters.dateTo);
+            if (this.filters.dateFrom) {
+                const dt = new Date(this.filters.dateFrom + 'T00:00:00');
+                params.set('date_from', dt.toISOString());
+            }
+            if (this.filters.dateTo) {
+                const dt = new Date(this.filters.dateTo + 'T23:59:59.999');
+                params.set('date_to', dt.toISOString());
+            }
             if (this.filters.minDuration) params.set('min_duration', this.filters.minDuration);
             if (this.filters.path) params.set('path', this.filters.path);
 
@@ -328,7 +334,15 @@ function sparrowApp() {
         formatTime(ts) {
             if (!ts) return '-';
             const d = new Date(ts);
-            return d.toLocaleString();
+            return new Intl.DateTimeFormat(undefined, {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false,
+            }).format(d);
         },
 
         formatJSON(str) {

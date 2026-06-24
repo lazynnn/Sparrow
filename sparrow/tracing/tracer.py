@@ -8,6 +8,7 @@ from sparrow.database import Database
 from sparrow.models import Trace, truncate_body
 from sparrow.tracing.cost import calculate_cost
 from sparrow.tracing.parsers import get_parser
+from sparrow.utils import utc_isoformat
 
 
 async def save_trace(
@@ -73,7 +74,7 @@ async def save_trace(
 
         trace_data = {
             "id": trace.id,
-            "timestamp": trace.timestamp.isoformat() if trace.timestamp else None,
+            "timestamp": utc_isoformat(trace.timestamp),
             "request_method": trace.request_method,
             "request_path": trace.request_path,
             "response_status": trace.response_status,

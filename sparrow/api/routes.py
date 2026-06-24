@@ -22,6 +22,7 @@ from sparrow.archive.archiver import create_archive, import_archive, list_archiv
 from sparrow.config import AppConfig
 from sparrow.database import Database
 from sparrow.models import Trace
+from sparrow.utils import utc_isoformat
 
 router = APIRouter(prefix="/api")
 
@@ -31,7 +32,7 @@ _trace_events: list[asyncio.Queue] = []
 def _trace_to_list_item(t: Trace) -> TraceListItem:
     return TraceListItem(
         id=t.id,
-        timestamp=t.timestamp.isoformat() if t.timestamp else None,
+        timestamp=utc_isoformat(t.timestamp),
         request_method=t.request_method,
         request_path=t.request_path,
         response_status=t.response_status,
@@ -76,10 +77,14 @@ async def list_traces(
             count_query = count_query.where(Trace.response_status == status_code)
         if date_from:
             dt = datetime.datetime.fromisoformat(date_from)
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
             query = query.where(Trace.timestamp >= dt)
             count_query = count_query.where(Trace.timestamp >= dt)
         if date_to:
             dt = datetime.datetime.fromisoformat(date_to)
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
             query = query.where(Trace.timestamp <= dt)
             count_query = count_query.where(Trace.timestamp <= dt)
         if min_duration:
@@ -146,7 +151,7 @@ async def get_trace(trace_id: int):
 
         return TraceDetail(
             id=trace.id,
-            timestamp=trace.timestamp.isoformat() if trace.timestamp else None,
+            timestamp=utc_isoformat(trace.timestamp),
             request_method=trace.request_method,
             request_path=trace.request_path,
             request_headers=trace.request_headers,
@@ -242,6 +247,10 @@ async def create_archive_endpoint(req: ArchiveCreateRequest):
     older_than = None
     if req.older_than:
         older_than = datetime.datetime.fromisoformat(req.older_than)
+        if older_than.tzinfo is not None:
+            older_than = older_than.astimezone(datetime.timezone.utc).replace(
+                tzinfo=None
+            )
 
     path = await create_archive(_db, _config.storage.archive_dir, older_than=older_than)
     if not path:
