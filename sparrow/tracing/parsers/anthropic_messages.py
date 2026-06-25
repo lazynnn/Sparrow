@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Optional
 
 from sparrow.tracing.parsers.base import TokenUsage
@@ -49,15 +50,17 @@ class AnthropicMessagesParser:
                 current_event = None
                 continue
 
-            if line.startswith("event: "):
-                current_event = line[7:].strip()
+            em = re.match(r"^event:\s*(.*)", line)
+            if em:
+                current_event = em.group(1).strip()
                 continue
 
-            if not line.startswith("data: "):
+            m = re.match(r"^data:\s*(.*)", line)
+            if not m:
                 current_event = None
                 continue
 
-            data_str = line[6:].strip()
+            data_str = m.group(1).strip()
             if data_str == "[DONE]":
                 continue
 

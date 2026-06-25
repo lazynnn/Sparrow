@@ -1,8 +1,4 @@
-## Purpose
-
-Support flexible matching of SSE data line prefixes, accepting both `data: ` (standard, with space) and `data:` (non-standard, no space).
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Flexible SSE data prefix matching
 The SSE parsing logic SHALL accept both `data: ` (standard, with space) and `data:` (non-standard, no space) as valid SSE data line prefixes in all detection, parsing, rendering, and token extraction contexts — including both frontend JavaScript and backend Python parsers.

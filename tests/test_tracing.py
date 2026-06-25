@@ -86,6 +86,28 @@ class TestOpenAIChatTokenExtraction:
         tokens = _chat.extract_token_usage_from_sse("")
         assert tokens["prompt_tokens"] is None
 
+    def test_sse_nonstandard_prefix(self):
+        chunks = (
+            'data:{"id":"chatcmpl-1","choices":[{"delta":{"content":"Hello"}}]}\n'
+            'data:{"id":"chatcmpl-1","usage":{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7}}\n'
+            "data:[DONE]\n"
+        )
+        tokens = _chat.extract_token_usage_from_sse(chunks)
+        assert tokens["prompt_tokens"] == 5
+        assert tokens["completion_tokens"] == 2
+        assert tokens["total_tokens"] == 7
+
+    def test_sse_mixed_prefix(self):
+        chunks = (
+            'data: {"id":"chatcmpl-1","choices":[{"delta":{"content":"Hello"}}]}\n'
+            'data:{"id":"chatcmpl-1","usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}\n'
+            "data: [DONE]\n"
+        )
+        tokens = _chat.extract_token_usage_from_sse(chunks)
+        assert tokens["prompt_tokens"] == 10
+        assert tokens["completion_tokens"] == 5
+        assert tokens["total_tokens"] == 15
+
 
 class TestOpenAIChatModelNameExtraction:
     def test_extract_model(self):

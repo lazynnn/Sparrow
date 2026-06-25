@@ -112,3 +112,29 @@ class TestAnthropicSSEExtraction:
         assert tokens["prompt_tokens"] == 15
         assert tokens["completion_tokens"] == 25
         assert tokens["total_tokens"] == 40
+
+    def test_nonstandard_prefix_with_event_lines(self):
+        chunks = (
+            "event:message_start\n"
+            'data:{"type":"message_start","message":{"usage":{"input_tokens":30}}}\n'
+            "\n"
+            "event:message_delta\n"
+            'data:{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":60}}\n'
+            "\n"
+        )
+        tokens = _parser.extract_token_usage_from_sse(chunks)
+        assert tokens["prompt_tokens"] == 30
+        assert tokens["completion_tokens"] == 60
+        assert tokens["total_tokens"] == 90
+
+    def test_nonstandard_prefix_without_event_lines(self):
+        chunks = (
+            'data:{"type":"message_start","message":{"usage":{"input_tokens":15}}}\n'
+            "\n"
+            'data:{"type":"message_delta","usage":{"output_tokens":25}}\n'
+            "\n"
+        )
+        tokens = _parser.extract_token_usage_from_sse(chunks)
+        assert tokens["prompt_tokens"] == 15
+        assert tokens["completion_tokens"] == 25
+        assert tokens["total_tokens"] == 40

@@ -86,3 +86,17 @@ class TestOpenAIResponsesSSEExtraction:
         assert tokens["prompt_tokens"] == 40
         assert tokens["completion_tokens"] == 60
         assert tokens["total_tokens"] == 100
+
+    def test_nonstandard_prefix(self):
+        chunks = (
+            'data:{"type":"response.output_item.added","output_index":0}\n'
+            "\n"
+            'data:{"type":"response.output_text.delta","delta":"Hello"}\n'
+            "\n"
+            'data:{"type":"response.completed","response":{"id":"resp_1","usage":{"input_tokens":50,"output_tokens":75,"total_tokens":125}}}\n'
+            "\n"
+        )
+        tokens = _parser.extract_token_usage_from_sse(chunks)
+        assert tokens["prompt_tokens"] == 50
+        assert tokens["completion_tokens"] == 75
+        assert tokens["total_tokens"] == 125

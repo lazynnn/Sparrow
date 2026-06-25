@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Optional
 
 from sparrow.tracing.parsers.base import TokenUsage
@@ -40,9 +41,10 @@ class OpenAIResponsesParser:
 
         for line in accumulated_chunks.split("\n"):
             line = line.strip()
-            if not line.startswith("data: "):
+            m = re.match(r"^data:\s*(.*)", line)
+            if not m:
                 continue
-            data_str = line[6:].strip()
+            data_str = m.group(1).strip()
             if data_str == "[DONE]":
                 continue
             try:
