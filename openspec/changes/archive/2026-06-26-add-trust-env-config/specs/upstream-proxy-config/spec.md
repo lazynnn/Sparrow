@@ -1,10 +1,4 @@
-# Upstream Proxy Configuration
-
-## Purpose
-
-Configure upstream HTTP/HTTPS proxy and no-proxy lists in config.yaml, with explicit precedence over system environment variables.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Upstream proxy configuration
 The gateway SHALL support configuring upstream HTTP and HTTPS proxy URLs, a no-proxy list, and a `trust_env` flag via the `upstream_proxy` section in config.yaml. The section SHALL contain optional fields: `http_proxy`, `https_proxy`, `no_proxy`, `ssl_verify`, and `trust_env`. When `no_proxy` is configured, the gateway SHALL evaluate each request's target host against the no-proxy patterns and bypass the proxy for matching hosts. The no_proxy field SHALL support: exact hostnames, domain suffixes (patterns starting with `.`), and CIDR network ranges. The `trust_env` field SHALL control whether httpx reads proxy settings from system environment variables, with the following resolution: when `trust_env` is explicitly set, use that value; when `trust_env` is `None` (not set) and any proxy field (`http_proxy`, `https_proxy`, `no_proxy`) is configured, resolve to `False`; when `trust_env` is `None` and no proxy fields are configured, resolve to `True`.
@@ -75,6 +69,8 @@ The gateway SHALL validate upstream proxy configuration at startup. Invalid prox
 #### Scenario: Empty upstream_proxy section
 - **WHEN** the configuration contains `upstream_proxy: {}`
 - **THEN** the gateway SHALL start successfully with no proxy configured and SHALL NOT read proxy settings from environment variables
+
+## ADDED Requirements
 
 ### Requirement: trust_env configuration
 The gateway SHALL support a `trust_env` field in the `upstream_proxy` config section. The field SHALL accept `true`, `false`, or be omitted. When omitted, the resolved value SHALL be `True` if no other proxy fields are configured, and `False` if any proxy field is configured. The resolved value SHALL be passed as the `trust_env` parameter to the httpx `AsyncClient`.

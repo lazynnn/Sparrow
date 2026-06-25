@@ -53,8 +53,10 @@ pricing:
 stream_timeout: 300
 
 # Upstream proxy settings
-# When set, these take precedence over system environment variables (HTTP_PROXY, HTTPS_PROXY, NO_PROXY).
-# When omitted or empty, the gateway falls back to system env vars (trust_env=True).
+# When proxy fields are set, these take precedence over system environment variables (HTTP_PROXY, HTTPS_PROXY, NO_PROXY).
+# When omitted or empty, the gateway falls back to system env vars (trust_env=True by default).
+# Set trust_env: false to explicitly disable reading proxy settings from environment variables.
+# Set trust_env: true to explicitly enable environment variable reading even when proxy fields are set.
 upstream_proxy:
   # HTTP proxy URL for upstream HTTP requests
   # http_proxy: "http://proxy.corp:8080"
@@ -64,3 +66,6 @@ upstream_proxy:
   # no_proxy: "localhost,127.0.0.1,.internal"
   # Disable SSL certificate verification for upstream requests (default: true)
   # ssl_verify: false
+  # Whether to read proxy settings from environment variables (HTTP_PROXY, HTTPS_PROXY, NO_PROXY).
+  # Default: true when no proxy fields are set, false when any proxy field is set.
+  # trust_env: false

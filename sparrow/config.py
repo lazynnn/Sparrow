@@ -41,6 +41,7 @@ class UpstreamProxyConfig(BaseModel):
     https_proxy: str | None = None
     no_proxy: str | None = None
     ssl_verify: bool = True
+    trust_env: bool | None = None
 
     @field_validator("http_proxy", "https_proxy")
     @classmethod
@@ -69,6 +70,14 @@ class UpstreamProxyConfig(BaseModel):
     @property
     def has_proxy(self) -> bool:
         return self.http_proxy is not None or self.https_proxy is not None
+
+    @property
+    def resolved_trust_env(self) -> bool:
+        if self.trust_env is not None:
+            return self.trust_env
+        if self.has_proxy or self.no_proxy is not None:
+            return False
+        return True
 
 
 class AppConfig(BaseModel):

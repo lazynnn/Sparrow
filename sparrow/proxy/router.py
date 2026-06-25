@@ -92,11 +92,13 @@ class _NoProxyTransport(httpx.AsyncBaseTransport):
 def _build_proxy_client(
     proxy_config: UpstreamProxyConfig, timeout: httpx.Timeout
 ) -> httpx.AsyncClient:
+    trust_env = proxy_config.resolved_trust_env
+
     if not proxy_config.has_proxy:
         return httpx.AsyncClient(
             timeout=timeout,
             follow_redirects=True,
-            trust_env=True,
+            trust_env=trust_env,
             verify=proxy_config.ssl_verify,
         )
 
@@ -112,7 +114,7 @@ def _build_proxy_client(
             proxy=http_proxy,
             timeout=timeout,
             follow_redirects=True,
-            trust_env=False,
+            trust_env=trust_env,
             verify=verify,
         )
 
@@ -126,7 +128,7 @@ def _build_proxy_client(
             proxy=single_proxy,
             timeout=timeout,
             follow_redirects=True,
-            trust_env=False,
+            trust_env=trust_env,
             verify=verify,
         )
 
@@ -164,7 +166,7 @@ def _build_proxy_client(
                 mounts=mounts,
                 timeout=timeout,
                 follow_redirects=True,
-                trust_env=False,
+                trust_env=trust_env,
                 verify=verify,
             )
 
@@ -173,7 +175,7 @@ def _build_proxy_client(
             transport=transport,
             timeout=timeout,
             follow_redirects=True,
-            trust_env=False,
+            trust_env=trust_env,
             verify=verify,
         )
 
@@ -195,7 +197,7 @@ def _build_proxy_client(
         mounts=mounts,
         timeout=timeout,
         follow_redirects=True,
-        trust_env=False,
+        trust_env=trust_env,
         verify=verify,
     )
 

@@ -243,3 +243,62 @@ class TestNoProxyBypass:
         timeout = httpx.Timeout(300, connect=10.0)
         client = _build_proxy_client(proxy_config, timeout)
         assert not isinstance(client._transport, _NoProxyTransport)
+
+
+class TestResolvedTrustEnv:
+    def test_none_no_proxy_fields_resolves_true(self):
+        proxy_config = UpstreamProxyConfig()
+        assert proxy_config.resolved_trust_env is True
+
+    def test_none_with_proxy_fields_resolves_false(self):
+        proxy_config = UpstreamProxyConfig(https_proxy="http://proxy:8080")
+        assert proxy_config.resolved_trust_env is False
+
+    def test_none_with_http_proxy_resolves_false(self):
+        proxy_config = UpstreamProxyConfig(http_proxy="http://proxy:8080")
+        assert proxy_config.resolved_trust_env is False
+
+    def test_none_with_no_proxy_resolves_false(self):
+        proxy_config = UpstreamProxyConfig(no_proxy="localhost")
+        assert proxy_config.resolved_trust_env is False
+
+    def test_explicit_true(self):
+        proxy_config = UpstreamProxyConfig(trust_env=True)
+        assert proxy_config.resolved_trust_env is True
+
+    def test_explicit_true_with_proxy_fields(self):
+        proxy_config = UpstreamProxyConfig(
+            https_proxy="http://proxy:8080", trust_env=True
+        )
+        assert proxy_config.resolved_trust_env is True
+
+    def test_explicit_false(self):
+        proxy_config = UpstreamProxyConfig(trust_env=False)
+        assert proxy_config.resolved_trust_env is False
+
+    def test_explicit_false_no_proxy_fields(self):
+        proxy_config = UpstreamProxyConfig(trust_env=False)
+        timeout = httpx.Timeout(300, connect=10.0)
+        client = _build_proxy_client(proxy_config, timeout)
+        assert client._trust_env is False
+
+    def test_explicit_true_no_proxy_fields(self):
+        proxy_config = UpstreamProxyConfig(trust_env=True)
+        timeout = httpx.Timeout(300, connect=10.0)
+        client = _build_proxy_client(proxy_config, timeout)
+        assert client._trust_env is True
+
+
+class TestDifferentProxiesWithNoProxy:
+    def test_different_http_https_proxies_with_no_proxy(self):
+        proxy_config = UpstreamProxyConfig(
+            http_proxy="http://proxy-http:8080",
+            https_proxy="http://proxy-https:8443",
+            no_proxy="localhost",
+        )
+        timeout = httpx.Timeout(300, connect=10.0)
+        client = _build_proxy_client(proxy_config, timeout)
+        noproxy_transports = [
+            t for t in client._mounts.values() if isinstance(t, _NoProxyTransport)
+        ]
+        assert len(noproxy_transports) == 2
